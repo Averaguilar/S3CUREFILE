@@ -14,13 +14,13 @@ from xml.etree import ElementTree as elTree
 
 
 def mainGenerateHashes(pathToRead):
-    countFiles = 0
-    xmlDBFile = 's3curefiledb.xml'
-    logFileName = 's3curefilelog.csv'
+
+    countFiles, xmlDBFile, logFileName = 0, 's3curefiledb.xml', 's3curefilelog.csv'
+    
     writeToLog(logFileName, '>>> HASH DB CREATION STARTED: '+ pathToRead)
     #Read the folder structure and save in XML Database
-    root = elTree.Element('AllItems')     # create the element Allitems for XML root
-    tree = elTree.ElementTree(root)       # and pass it to the created tree
+    root = elTree.Element('AllItems')  # create the element Allitems for XML root and pass it to the created tree
+    tree = elTree.ElementTree(root)
     BLOCKSIZE = 65536 # Block size to read in case of a large file.
     for fileName in glob.iglob(pathToRead + '**\*.*', recursive=True): 
         hasher = hashlib.sha256()
@@ -28,8 +28,7 @@ def mainGenerateHashes(pathToRead):
             buf = afile.read(BLOCKSIZE)
             while len(buf) > 0:  # as long as a block was read
                 hasher.update(buf)
-                buf = afile.read(BLOCKSIZE)
-        afile.close()        
+                buf = afile.read(BLOCKSIZE)    
         print(hasher.hexdigest())
         root.append(dict_to_elem({'filename':fileName, 'SHA256hash': hasher.hexdigest()}))
         countFiles += 1
@@ -42,16 +41,14 @@ def mainGenerateHashes(pathToRead):
 
 
 def mainVerify():
-    logFileName = 's3curefilelog.csv'
-    xmlFileName = 's3curefiledb.xml'
+    logFileName, xmlFileName = 's3curefilelog.csv', 's3curefiledb.xml'
+
     # Generate the tree of XML in memory
     dom = elTree.parse(xmlFileName)
     # pulls all the FILEITEMs under the root along with all the subelements: filename and SHA256hash
-    fileItems = dom.findall('FILEITEM')
-    totalFilesInDB = dom.findtext("FILEITEM/totalfiles")
-    totalFilesVerified = 0
-    filesMissing = 0
-    verifyPath = dom.findtext("FILEITEM/basepath")                             #<<<--- Extract the entire path and filename
+    fileItems, totalFilesInDB, verifyPath = dom.findall('FILEITEM'), dom.findtext("FILEITEM/totalfiles"), dom.findtext("FILEITEM/basepath")
+    totalFilesVerified, filesMissing = 0, 0
+    #verifyPath = dom.findtext("FILEITEM/basepath")                             #<<<--- Extract the entire path and filename
     writeToLog(logFileName, '>>> HASH VERIFICATION STARTED ' + verifyPath)
     print(">>>> ", verifyPath)     
     BLOCKSIZE = 65536 # Block size to read in case of a large file.
@@ -71,7 +68,6 @@ def mainVerify():
                 while len(buf) > 0:  # as long as a block was read
                     hasher.update(buf)
                     buf = afile.read(BLOCKSIZE)
-            afile.close()
             hashFromFile = hasher.hexdigest()       # Generate the SHA256 file's value
             if hashFromFile != evalList[1]:
                 logmsg = "* WARNING 01 * " + evalList[0] + ' hash: ' + hashFromFile + ' db hash: ' + evalList[1]
@@ -117,19 +113,19 @@ if __name__ == "__main__":
     # the following two lines are kept in case of debugging without the cmd line
     # mainVerify()
     # mainGenerateHashes('D:\\PASAR A USB\\')
-    logFile = 's3curefilelog.csv'
-    xmlDB = 's3curefiledb.xml'
+    logFile, xmlDB = 's3curefilelog.csv', 's3curefiledb.xml'
+
     if not logExists(logFile):
         initLog(logFile)
     # Check the command line arguments
     if len(sys.argv) == 2:
         writeToLog(logFile, 'cmd line received: ' + sys.argv[1])
         if sys.argv[1] == '-v':  # <<<--- if the command passed was -v, then verify files in the path against the XML database
-            if os.path.exists(xmlDB):
+            if os.path.exists(xmlDB): # if a -v command was passed, chech if xml db exists
                 mainVerify()
             else:
                 writeToLog(logFile, '* WARNING 04 * xml database does not exist ')
-                exit(2)
+                sys.exit(2)
         else:
             dirArgument = sys.argv[1] + '\\' # it works if the path is ended in \ or not
             if not os.path.exists(dirArgument):
@@ -139,7 +135,7 @@ if __name__ == "__main__":
             else:
                 print(dirArgument)
                 mainGenerateHashes(dirArgument) # <<<--- If the command passed was a path, generate the hashes
-        exit(0)
+        sys.exit(0)
     else:
         writeToLog(logFile, '* WARNING 03 * incorrect cmd line USAGE: s3curefile (PATH or -v)')
-        exit(1)
+        sys.exit(1)
